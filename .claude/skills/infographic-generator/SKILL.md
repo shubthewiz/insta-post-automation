@@ -51,8 +51,19 @@ images plus a caption file, saved to `output/<topic-slug>/`.
    relevant hashtags (mix of broad travel tags and specific/niche ones). Keep the whole
    thing under ~1500 characters (Instagram's limit is 2200, leave headroom).
 
-5. **Report back** the output folder path and list the generated files. Do not claim the
-   images look good without the user confirming — tell them where to look.
+5. **Sync to Notion (if configured).** Check whether a `.env` file exists in the project
+   root with `NOTION_TOKEN` set. If so, run:
+   ```
+   node --env-file=.env .claude/skills/infographic-generator/scripts/sync-to-notion.js output/<topic-slug>
+   ```
+   This creates the "Instagram content calendar" database on first use (reusing it on
+   later runs — the database id is cached in `.notion-config.json`), uploads the slide
+   images, and creates a page with Status = "Ready for Review" for human approval. If
+   `NOTION_TOKEN` isn't set, skip this step and just report the local output folder —
+   don't treat it as an error.
+
+6. **Report back** the output folder path (and the Notion page URL, if synced). Do not
+   claim the images look good without the user confirming — tell them where to look.
 
 ## Iterating on the template/design
 
