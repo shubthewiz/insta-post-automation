@@ -85,6 +85,10 @@ async function ensureDatabase() {
         Topic: { rich_text: {} },
         'Slide Count': { number: {} },
         Caption: { rich_text: {} },
+        // Notion's own hosted copies of uploaded images expire (signed URLs, ~1hr) --
+        // the posting script needs to re-read the original local PNGs at post time,
+        // so it needs to know where they are.
+        'Local Path': { rich_text: {} },
       },
     }),
   });
@@ -165,6 +169,7 @@ async function main() {
         Topic: { rich_text: [{ text: { content: content.topic } }] },
         'Slide Count': { number: slideFiles.length },
         Caption: { rich_text: [{ text: { content: caption.slice(0, 2000) } }] },
+        'Local Path': { rich_text: [{ text: { content: path.resolve(outDir) } }] },
       },
       children: fileUploadIds.map((id) => ({
         object: 'block',

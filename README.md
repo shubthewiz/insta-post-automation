@@ -24,7 +24,38 @@ Just run `/infographic-generator <topic>` inside Claude Code in this folder.
    last `-` in the URL)
 3. Copy `.env.example` to `.env` and fill in `NOTION_TOKEN` and `NOTION_PARENT_PAGE_ID`
 
-### Instagram posting (not built yet)
-Needs a Meta Developer app + Business verification (`IG_BUSINESS_ACCOUNT_ID` /
-`IG_ACCESS_TOKEN` in `.env` — see `.env.example`), then a scheduled job that checks
-Notion for Status = Approved + due posts and publishes them via the Graph API.
+### Instagram posting
+
+The script (`scripts/post-scheduled.js`) is built, but **untested** — I don't have
+live Meta/Notion credentials to run it against. It needs these one-time setup steps,
+all self-serve, no one else's account involved:
+
+1. Make sure your Facebook Page is linked to an Instagram **Business** account
+   (Page Settings → Instagram)
+2. At business.facebook.com: create a Business Portfolio, add your Page and
+   Instagram account to it (Business Settings → Accounts)
+3. At developers.facebook.com/apps: create an app → use case "Manage messaging and
+   content on Instagram" → link it to that Business Portfolio
+4. Add permissions: `pages_show_list`, `business_management`, `instagram_basic`,
+   `instagram_content_publish`, `pages_read_engagement`
+5. In the Graph API Explorer (developers.facebook.com/tools/explorer): select the
+   app + those permissions → Generate Access Token (as **User Token**)
+6. Get IDs: call `/me/accounts` for your Page ID, then
+   `/<page-id>?fields=connected_instagram_account` for the IG Business Account ID
+7. **Extend the token**: developers.facebook.com/tools/debug/accesstoken → paste
+   token → "Extend Access Token" → gives you a ~60-day token instead of ~1hr.
+   Repeat every ~2 months, or whenever posting starts failing with an auth error.
+8. Also get a free `IMAGE_HOST_API_KEY` at api.imgbb.com (needed because the Graph
+   API fetches images from a URL you give it, not a direct upload)
+9. Fill all of these into `.env`
+
+### Scheduling
+
+Not using Claude's own "Routines" feature for this — it ties the automation to
+whichever Claude account is logged in, which caused real friction while setting this
+up. Instead: Windows Task Scheduler runs
+`node --env-file=.env .claude/skills/infographic-generator/scripts/post-scheduled.js`
+once daily. It's a no-op (logs "nothing due today" and exits) unless a Notion entry
+is both Approved and due, so it's safe to leave running even before everything above
+is configured. Ask Claude to set up the scheduled task once you're ready to turn it
+on — it's one `schtasks` command but worth confirming the time/cadence first.
