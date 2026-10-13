@@ -30,7 +30,9 @@ images plus a caption file, saved to `output/<topic-slug>/`.
      ]
    }
    ```
-   - First slide: `"kind": "title"` (uses `heading` + `subheading`, no number).
+   - First slide: `"kind": "title"` (uses `heading` + `subheading`, no number). The
+     topic itself is already shown as a small label above the heading on this slide —
+     `heading` must be a distinct hook/angle, not a restatement of the topic text.
    - Middle slides: `"kind": "point"` with a 2-digit `number` string ("01", "02", ...).
    - Last slide: `"kind": "cta"`.
    - `accent` is a hex color for this carousel's highlight color — vary it between runs

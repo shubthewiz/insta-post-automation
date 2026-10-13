@@ -30,7 +30,14 @@ async function main() {
     ? `data:image/png;base64,${fs.readFileSync(logoPath).toString('base64')}`
     : null;
 
-  const browser = await puppeteer.launch({ headless: 'new' });
+  // Chromium's sandbox refuses to start when running as root, which cloud/Docker
+  // containers typically do. On a normal desktop (not root) this stays off and the
+  // sandbox is unaffected.
+  const runningAsRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: runningAsRoot ? ['--no-sandbox'] : [],
+  });
   const page = await browser.newPage();
   await page.setViewport({ width: 1080, height: 1080, deviceScaleFactor: 1 });
 
