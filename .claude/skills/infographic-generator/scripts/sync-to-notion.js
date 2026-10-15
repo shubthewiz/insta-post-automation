@@ -57,9 +57,14 @@ function saveConfig(cfg) {
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
 }
 
+// As of Notion API version 2025-09-03, a "database" is just a container -- the
+// actual property schema and the pages themselves belong to one of its "data
+// sources" (multi-source databases). Page creation must target data_source_id,
+// not database_id, and the property schema is set via initial_data_source on
+// creation, not a top-level `properties` field (which is silently ignored).
 async function ensureDatabase() {
   const cfg = loadConfig();
-  if (cfg.databaseId) return cfg.databaseId;
+  if (cfg.dataSourceId) return cfg.dataSourceId;
 
   const parentPageId = requireEnv('NOTION_PARENT_PAGE_ID');
   console.log('No database configured yet -- creating "Instagram content calendar"...');
@@ -69,34 +74,38 @@ async function ensureDatabase() {
     body: JSON.stringify({
       parent: { type: 'page_id', page_id: parentPageId },
       title: [{ type: 'text', text: { content: 'Instagram content calendar' } }],
-      properties: {
-        Name: { title: {} },
-        Status: {
-          select: {
-            options: [
-              { name: 'Ready for Review', color: 'yellow' },
-              { name: 'Approved', color: 'green' },
-              { name: 'Posted', color: 'blue' },
-              { name: 'Rejected', color: 'red' },
-            ],
+      initial_data_source: {
+        properties: {
+          Name: { title: {} },
+          Status: {
+            select: {
+              options: [
+                { name: 'Ready for Review', color: 'yellow' },
+                { name: 'Approved', color: 'green' },
+                { name: 'Posted', color: 'blue' },
+                { name: 'Rejected', color: 'red' },
+              ],
+            },
           },
+          'Scheduled Date': { date: {} },
+          Topic: { rich_text: {} },
+          'Slide Count': { number: {} },
+          Caption: { rich_text: {} },
+          // Notion's own hosted copies of uploaded images expire (signed URLs,
+          // ~1hr) -- the posting script needs to re-read the original local
+          // PNGs at post time, so it needs to know where they are.
+          'Local Path': { rich_text: {} },
         },
-        'Scheduled Date': { date: {} },
-        Topic: { rich_text: {} },
-        'Slide Count': { number: {} },
-        Caption: { rich_text: {} },
-        // Notion's own hosted copies of uploaded images expire (signed URLs, ~1hr) --
-        // the posting script needs to re-read the original local PNGs at post time,
-        // so it needs to know where they are.
-        'Local Path': { rich_text: {} },
       },
     }),
   });
 
+  const dataSourceId = db.data_sources[0].id;
   cfg.databaseId = db.id;
+  cfg.dataSourceId = dataSourceId;
   saveConfig(cfg);
-  console.log(`Created database: ${db.id}`);
-  return db.id;
+  console.log(`Created database: ${db.id} (data source: ${dataSourceId})`);
+  return dataSourceId;
 }
 
 // Three-step upload: create a file_upload object, PUT the bytes to its upload URL,
@@ -108,15 +117,19 @@ async function uploadFile(filePath) {
     body: JSON.stringify({ filename, content_type: 'image/png' }),
   });
 
+  // Notion's upload step wants multipart/form-data with the bytes under a "file"
+  // field -- a raw binary POST (what this used to do) gets rejected with
+  // "body.file should be defined".
   const bytes = fs.readFileSync(filePath);
+  const form = new FormData();
+  form.append('file', new Blob([bytes], { type: 'image/png' }), filename);
   const uploadRes = await fetch(created.upload_url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${process.env.NOTION_TOKEN}`,
       'Notion-Version': NOTION_VERSION,
-      'Content-Type': 'image/png',
     },
-    body: bytes,
+    body: form,
   });
   if (!uploadRes.ok) {
     throw new Error(`File upload failed for ${filename}: ${uploadRes.status} ${await uploadRes.text()}`);
@@ -149,7 +162,7 @@ async function main() {
     process.exit(1);
   }
 
-  const databaseId = await ensureDatabase();
+  const dataSourceId = await ensureDatabase();
 
   console.log(`Uploading ${slideFiles.length} slides...`);
   const fileUploadIds = [];
@@ -162,7 +175,7 @@ async function main() {
   const page = await notionFetch('/pages', {
     method: 'POST',
     body: JSON.stringify({
-      parent: { database_id: databaseId },
+      parent: { data_source_id: dataSourceId },
       properties: {
         Name: { title: [{ text: { content: content.topic } }] },
         Status: { select: { name: 'Ready for Review' } },

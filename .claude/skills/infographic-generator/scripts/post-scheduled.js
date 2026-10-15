@@ -71,9 +71,11 @@ function richText(prop) {
   return (prop?.rich_text || []).map((t) => t.plain_text || t.text?.content || '').join('');
 }
 
-async function findDuePost(databaseId) {
+async function findDuePost(dataSourceId) {
   const today = new Date().toISOString().slice(0, 10);
-  const result = await notionFetch(`/databases/${databaseId}/query`, {
+  // Multi-source databases (API version 2025-09-03+): pages are queried via the
+  // data source, not the database itself -- see sync-to-notion.js for the same.
+  const result = await notionFetch(`/data_sources/${dataSourceId}/query`, {
     method: 'POST',
     body: JSON.stringify({
       filter: {
@@ -130,10 +132,10 @@ async function publishCarousel(imageUrls, caption) {
 
 async function main() {
   requireEnv('NOTION_TOKEN');
-  const { databaseId } = loadConfig();
+  const { dataSourceId } = loadConfig();
 
   console.log('Checking for a due, approved post...');
-  const post = await findDuePost(databaseId);
+  const post = await findDuePost(dataSourceId);
   if (!post) {
     console.log('Nothing due today. Exiting.');
     return;
